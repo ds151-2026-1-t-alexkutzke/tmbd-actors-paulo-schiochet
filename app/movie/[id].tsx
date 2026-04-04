@@ -1,6 +1,6 @@
-import { useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { View, Text, Image, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, Image, StyleSheet, ActivityIndicator, ScrollView, FlatList, Pressable } from 'react-native';
 import { api } from '../../src/api/tmdb';
 
 interface MovieDetails {
@@ -11,17 +11,50 @@ interface MovieDetails {
   runtime: number;
 }
 
+interface CastMember {
+  id: string;
+  name: string;
+  character: string;
+  profile_path: string | null;
+}
+
+function CastCard({ name, character, profile_path }: CastMember) {
+  return (
+    <View style={styles.castCard}>
+      {profile_path ? (
+        <Image
+          source={{ uri: `https://image.tmdb.org/t/p/w185${profile_path}` }}
+          style={styles.castPhoto}
+        />
+      ) : (
+        <View style={styles.castPhotoEmpty}>
+          <Text style={styles.castPhotoEmptyText}>Sem{'\n'}Foto</Text>
+        </View>
+      )}
+      <Text style={styles.castName} numberOfLines={2}>
+        {name}
+      </Text>
+      <Text style={styles.castCharacter} numberOfLines={1}>
+        {character}
+      </Text>
+    </View>
+  );
+}
+
 export default function MovieDetailsScreen() {
-  // Captura o parâmetro '[id]' do nome do arquivo
   const { id } = useLocalSearchParams();
   const [movie, setMovie] = useState<MovieDetails | null>(null);
+  const [cast, setCast] = useState<CastMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchMovieDetails = async () => {
       try {
-        const response = await api.get(`/movie/${id}`);
-        setMovie(response.data);
+        const movieDetails = await api.get(`/movie/${id}`);
+        setMovie(movieDetails.data);
+
+        const castDetails = await api.get(`/movie/${id}/credits`);
+        setCast(castDetails.data.cast);
       } catch (error) {
         console.error('Erro ao buscar detalhes:', error);
       } finally {
@@ -30,7 +63,7 @@ export default function MovieDetailsScreen() {
     };
 
     fetchMovieDetails();
-  }, [id]); // O hook é re-executado caso o ID mude
+  }, [id]);
 
   if (isLoading) {
     return (
@@ -52,7 +85,9 @@ export default function MovieDetailsScreen() {
     <ScrollView style={styles.container}>
       {movie.poster_path && (
         <Image
-          source={{ uri: `https://image.tmdb.org/t/p/w500${movie.poster_path}` }}
+          source={{
+            uri: `https://image.tmdb.org/t/p/w500${movie.poster_path}`,
+          }}
           style={styles.poster}
           resizeMode="cover"
         />
@@ -69,6 +104,21 @@ export default function MovieDetailsScreen() {
         <Text style={styles.overview}>
           {movie.overview || 'Sinopse não disponível para este filme.'}
         </Text>
+
+        <Text style={styles.sectionTitle}>Elenco</Text>
+        <FlatList
+          data={cast}
+          horizontal={true}
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <Link href={`/actor/${item.id}`} asChild>
+              <Pressable>
+                <CastCard {...item} />
+              </Pressable>
+            </Link>
+          )}
+        />
       </View>
     </ScrollView>
   );
@@ -82,7 +132,33 @@ const styles = StyleSheet.create({
   title: { color: '#FFFFFF', fontSize: 24, fontWeight: 'bold', marginBottom: 16 },
   statsContainer: { flexDirection: 'row', gap: 16, marginBottom: 24 },
   statText: { color: '#E50914', fontSize: 16, fontWeight: '600' },
-  sectionTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold', marginBottom: 8 },
+  sectionTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    marginTop: 10
+  },
   overview: { color: '#D1D5DB', fontSize: 16, lineHeight: 24 },
   errorText: { color: '#FFFFFF', fontSize: 18 },
+  castCard: { width: 110, marginRight: 12, alignItems: 'center' },
+  castPhoto: { width: 90, height: 90, borderRadius: 45, marginBottom: 6 },
+  castPhotoEmpty: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: '#333333',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6
+  },
+  castPhotoEmptyText: { color: '#9CA3AF', fontSize: 11, textAlign: 'center' },
+  castName: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 2
+  },
+  castCharacter: { color: '#9CA3AF', fontSize: 11, textAlign: 'center' },
 });
